@@ -1,0 +1,36 @@
+<?xml version = "1.0"?>
+<project name = "WowzaS3Upload" basedir = "." default = "jar">
+    <property name = "src.dir" value = "./src"/>
+    <property name = "build.dir" value = "./build"/>
+    <property name="jar.dir" value="./out"/>
+    <property name="wowza.lib.dir" value="/Users/anshit/work/wowza/wowza_install_dir/lib"/>
+
+    <path id = "master-classpath">
+        <fileset dir="${wowza.lib.dir}">
+            <include name="**/*.jar"/>
+        </fileset>
+        <pathelement path = "${build.dir}"/>
+    </path>
+
+    <target name = "build" description = "Compile source tree java files">
+        <mkdir dir = "${build.dir}"/>
+        <javac srcdir="${src.dir}"
+               destdir = "${build.dir}"
+               source="8"
+               target="8">
+            <classpath refid = "master-classpath"/>
+        </javac>
+    </target>
+
+    <target name = "clean" description = "Clean output directories">
+        <delete>
+            <fileset dir = "${build.dir}"/>
+            <fileset dir= "${jar.dir}"/>
+        </delete>
+    </target>
+
+    <target name="jar" depends="build">
+        <mkdir dir = "${jar.dir}"/>
+        <jar destfile="./${jar.dir}/wse-plugin-s3upload.jar" basedir="${build.dir}"/>
+    </target>
+</project>

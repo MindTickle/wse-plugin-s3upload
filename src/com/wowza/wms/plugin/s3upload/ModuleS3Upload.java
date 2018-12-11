@@ -9,16 +9,7 @@ import java.io.FileFilter;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.Timer;
-import java.util.TimerTask;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -335,7 +326,9 @@ public class ModuleS3Upload extends ModuleBase
 	private String filePrefix = null;
 	private String endpoint = null;
 	private String regionName = null;
-	private File storageDir = null;
+	private String mediaServerType = null;
+    private String UNPROCESSED_FOLDER_NAME = "unprocessed";
+    private File storageDir = null;
 	private Map<String, Timer> uploadTimers = new HashMap<String, Timer>();
 	private List<String> currentUploads = new ArrayList<String>();
 
@@ -375,20 +368,20 @@ public class ModuleS3Upload extends ModuleBase
 			awsProfilePath = props.getPropertyStr("s3UploadAwsProfilePath", awsProfilePath);
 			bucketName = props.getPropertyStr("s3UploadBucketName", bucketName);
 			filePrefix = props.getPropertyStr("s3UploadFilePrefix", filePrefix);
-
 			// prefer to set region rather than endpoint which will be deprecated at some point.
-			regionName = props.getPropertyStr("s3UploadRegion", regionName);
-			if (StringUtils.isEmpty(regionName))
+            regionName = props.getPropertyStr("s3UploadRegion", regionName);
+            if (StringUtils.isEmpty(regionName))
 			{
-				endpoint = props.getPropertyStr("s3UploadEndpoint", endpoint);
-				regionName = getRegion();
-			}
-			// if region or endpoint isn't set then use the default region.
-			// disable if region can be determined via the DefaultAwsRegionProviderChain.
-			useDefaultRegion = props.getPropertyBoolean("s3UploadUseDefaultRegion", useDefaultRegion);
-			//  turn on global bucket access so that uploads won't fail if the region is incorrect.
-			allowBucketRegionOverride = props.getPropertyBoolean("s3UploadAllowBucketRegionOverride", allowBucketRegionOverride);
-			checkBucket = props.getPropertyBoolean("s3UploadCheckBucket", checkBucket);
+                endpoint = props.getPropertyStr("s3UploadEndpoint", endpoint);
+                regionName = getRegion();
+            }
+            // if region or endpoint isn't set then use the default region.
+            // disable if region can be determined via the DefaultAwsRegionProviderChain.
+            useDefaultRegion = props.getPropertyBoolean("s3UploadUseDefaultRegion", useDefaultRegion);
+            //  turn on global bucket access so that uploads won't fail if the region is incorrect.
+            allowBucketRegionOverride = props.getPropertyBoolean("s3UploadAllowBucketRegionOverride", allowBucketRegionOverride);
+            mediaServerType = props.getPropertyStr("mediaServerType", mediaServerType);
+            checkBucket = props.getPropertyBoolean("s3UploadCheckBucket", checkBucket);
 			debugLog = props.getPropertyBoolean("s3UploadDebugLog", debugLog);
 			resumeUploads = props.getPropertyBoolean("s3UploadResumeUploads", resumeUploads);
 			restartFailedUploads = props.getPropertyBoolean("s3UploadRestartFailedUploads", restartFailedUploads);
@@ -407,6 +400,11 @@ public class ModuleS3Upload extends ModuleBase
 
 			GroupGrantee grantee = null;
 			Permission permission = null;
+
+			// Check if mediaServerType is not empty
+            if (mediaServerType == null || mediaServerType.isEmpty()) {
+                throw new Exception("Value of property : [mediaServerType] cannot be null or empty");
+            }
 
 			// With the passed property, check if it maps to a specified GroupGrantee
 			if (!StringUtils.isEmpty(aclGroupGranteeUri))
@@ -649,7 +647,11 @@ public class ModuleS3Upload extends ModuleBase
 
 					if (mediaFile.exists())
 					{
-						uploadName = mediaName;
+						if (mediaName.split("_").length != 3) {
+						    throw new Exception("mediaName (streamKey) [ " + mediaName + "] is not in valid format");
+                        } else {
+						    uploadName = String.join("/", Arrays.copyOfRange(mediaName.split("_"), 0, 2)) + "/" + mediaServerType + "/" + UNPROCESSED_FOLDER_NAME + "/" + mediaName;
+                        }
 						if (!StringUtils.isEmpty(filePrefix))
 						{
 							uploadName = filePrefix + (filePrefix.endsWith("/") ? "" : "/") + uploadName;
@@ -658,6 +660,7 @@ public class ModuleS3Upload extends ModuleBase
 						{
 							uploadName = getMediaNameVersion(uploadName);
 						}
+						logger.info("Uploading file to S3 #MINDTICKLE with uploadName + [" + uploadName + "]");
 						// In order to support setting ACL permissions for the file upload, we will wrap the upload properties in a PutObjectRequest
 						PutObjectRequest putObjectRequest = new PutObjectRequest(bucketName, uploadName, mediaFile);
 
