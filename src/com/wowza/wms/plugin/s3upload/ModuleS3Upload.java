@@ -18,6 +18,7 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.profile.ProfileCredentialsProvider;
+import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.event.ProgressEvent;
 import com.amazonaws.event.ProgressEventType;
 import com.amazonaws.regions.Regions;
@@ -438,28 +439,35 @@ public class ModuleS3Upload extends ModuleBase
 			AmazonS3 s3Client = null;
 			AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
 			Regions region = null;
-			try
-			{
-				region = Regions.fromName(regionName);
-			}
-			catch (IllegalArgumentException e)
-			{
-				if (useDefaultRegion)
+
+			if (s3EndPointUrl != null && !s3EndPointUrl.isEmpty()) {
+				builder.setEndpointConfiguration(
+                        new AwsClientBuilder.EndpointConfiguration(s3EndPointUrl, null)
+                );
+			} else{
+				try
 				{
-					region = Regions.getCurrentRegion() != null ? Regions.fromName(Regions.getCurrentRegion().getName()) : Regions.DEFAULT_REGION;
-					// set the regionName to the default region. Used in the bucket check later.
-					if (region != null)
-						regionName = region.getName();
+					region = Regions.fromName(regionName);
 				}
-			}
-			finally
-			{
-				if (region != null)
+				catch (IllegalArgumentException e)
 				{
-					builder.withRegion(region);
-					if (allowBucketRegionOverride)
+					if (useDefaultRegion)
 					{
-						builder.withForceGlobalBucketAccessEnabled(true);
+						region = Regions.getCurrentRegion() != null ? Regions.fromName(Regions.getCurrentRegion().getName()) : Regions.DEFAULT_REGION;
+						// set the regionName to the default region. Used in the bucket check later.
+						if (region != null)
+							regionName = region.getName();
+					}
+				}
+				finally
+				{
+					if (region != null)
+					{
+						builder.withRegion(region);
+						if (allowBucketRegionOverride)
+						{
+							builder.withForceGlobalBucketAccessEnabled(true);
+						}
 					}
 				}
 			}
@@ -468,9 +476,6 @@ public class ModuleS3Upload extends ModuleBase
 
 			s3Client = builder.build();
 
-            if (s3EndPointUrl != null && !s3EndPointUrl.isEmpty()) {
-                s3Client.setEndpoint(s3EndPointUrl);
-            }
 
 			if (checkBucket)
 			{
