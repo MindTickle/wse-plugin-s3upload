@@ -327,6 +327,7 @@ public class ModuleS3Upload extends ModuleBase
 	private String endpoint = null;
 	private String regionName = null;
 	private String mediaServerType = null;
+	private String s3EndPointUrl = null;
     private String UNPROCESSED_FOLDER_NAME = "unprocessed";
     private File storageDir = null;
 	private Map<String, Timer> uploadTimers = new HashMap<String, Timer>();
@@ -381,6 +382,7 @@ public class ModuleS3Upload extends ModuleBase
             //  turn on global bucket access so that uploads won't fail if the region is incorrect.
             allowBucketRegionOverride = props.getPropertyBoolean("s3UploadAllowBucketRegionOverride", allowBucketRegionOverride);
             mediaServerType = props.getPropertyStr("mediaServerType", mediaServerType);
+            s3EndPointUrl = props.getPropertyStr("s3EndPointUrl", s3EndPointUrl);
             checkBucket = props.getPropertyBoolean("s3UploadCheckBucket", checkBucket);
 			debugLog = props.getPropertyBoolean("s3UploadDebugLog", debugLog);
 			resumeUploads = props.getPropertyBoolean("s3UploadResumeUploads", resumeUploads);
@@ -461,36 +463,14 @@ public class ModuleS3Upload extends ModuleBase
 					}
 				}
 			}
-			AWSCredentialsProvider credentialsProvider = null;
 
-			// backwards compatibility
-			if (!StringUtils.isEmpty(accessKey) && !StringUtils.isEmpty(secretKey))
-			{
-				logger.info(MODULE_NAME + ".onAppStart: [" + appInstance.getContextStr() + "] using supplied aws credentials", WMSLoggerIDs.CAT_application, WMSLoggerIDs.EVT_comment);
-				credentialsProvider = new AWSStaticCredentialsProvider(new BasicAWSCredentials(accessKey, secretKey));
-			}
-			else if (!StringUtils.isEmpty(awsProfile))
-			{
-				logger.info(MODULE_NAME + ".onAppStart: [" + appInstance.getContextStr() + "] using aws profile: " + awsProfile, WMSLoggerIDs.CAT_application, WMSLoggerIDs.EVT_comment);
-				if (StringUtils.isEmpty(awsProfilePath))
-				{
-					credentialsProvider = new ProfileCredentialsProvider(awsProfile);
-				}
-				else
-				{
-					credentialsProvider = new ProfileCredentialsProvider(awsProfilePath, awsProfile);
-				}
-			}
-			else
-			{
-				logger.info(MODULE_NAME + ".onAppStart: [" + appInstance.getContextStr() + "] using default aws credentials provider chain", WMSLoggerIDs.CAT_application, WMSLoggerIDs.EVT_comment);
-
-			}
-
-			if (credentialsProvider != null)
-				builder.withCredentials(credentialsProvider);
+			logger.info(MODULE_NAME + ".onAppStart: [" + appInstance.getContextStr() + "] using default aws credentials provider chain", WMSLoggerIDs.CAT_application, WMSLoggerIDs.EVT_comment);
 
 			s3Client = builder.build();
+
+            if (s3EndPointUrl != null && !s3EndPointUrl.isEmpty()) {
+                s3Client.setEndpoint(s3EndPointUrl);
+            }
 
 			if (checkBucket)
 			{
