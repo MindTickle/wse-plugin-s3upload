@@ -14,16 +14,16 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.profile.ProfileCredentialsProvider;
+import com.amazonaws.auth.*;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.event.ProgressEvent;
 import com.amazonaws.event.ProgressEventType;
+import com.amazonaws.regions.Region;
 import com.amazonaws.regions.Regions;
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import com.amazonaws.services.s3.S3ClientOptions;
 import com.amazonaws.services.s3.model.AccessControlList;
 import com.amazonaws.services.s3.model.CannedAccessControlList;
 import com.amazonaws.services.s3.model.GroupGrantee;
@@ -436,57 +436,69 @@ public class ModuleS3Upload extends ModuleBase
 				}
 			}
 
-			AmazonS3 s3Client = null;
-			AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
-			Regions region = null;
+            AmazonS3 s3Client = null;
+            AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
 
-			if (s3EndPointUrl != null && !s3EndPointUrl.isEmpty()) {
-				builder.setEndpointConfiguration(
-                        new AwsClientBuilder.EndpointConfiguration(s3EndPointUrl, null)
+            if (s3EndPointUrl != null && !s3EndPointUrl.isEmpty()) {
+                builder.setEndpointConfiguration(
+                        new AwsClientBuilder.EndpointConfiguration(s3EndPointUrl, regionName)
                 );
-			} else{
-				try
-				{
-					region = Regions.fromName(regionName);
-				}
-				catch (IllegalArgumentException e)
-				{
-					if (useDefaultRegion)
-					{
-						region = Regions.getCurrentRegion() != null ? Regions.fromName(Regions.getCurrentRegion().getName()) : Regions.DEFAULT_REGION;
-						// set the regionName to the default region. Used in the bucket check later.
-						if (region != null)
-							regionName = region.getName();
-					}
-				}
-				finally
-				{
-					if (region != null)
-					{
-						builder.withRegion(region);
-						if (allowBucketRegionOverride)
-						{
-							builder.withForceGlobalBucketAccessEnabled(true);
-						}
-					}
-				}
-			}
+                builder.setPathStyleAccessEnabled(true);
+            } else {
+                Regions region = Regions.fromName(regionName);
+                builder.withRegion(region);
+            }
 
-			logger.info(MODULE_NAME + ".onAppStart: [" + appInstance.getContextStr() + "] using default aws credentials provider chain", WMSLoggerIDs.CAT_application, WMSLoggerIDs.EVT_comment);
+            s3Client = builder.build();
 
-			s3Client = builder.build();
-
-
-			if (checkBucket)
-			{
-				// check that the bucket exists and the s3Client can access it.
-				// fails with a 404 response if the bucket doesn't exist and a 403 response if the s3Client doesn't have permission to access it.
-				// fails with a 301 response if the bucket is in a different region and allowBucketRegionOverride isn't set (otherwise log a warning).
-				HeadBucketResult headBucketResult = s3Client.headBucket(new HeadBucketRequest(bucketName));
-				String bucketRegion = headBucketResult.getBucketRegion();
-				if (!bucketRegion.equalsIgnoreCase(regionName))
-					logger.warn(MODULE_NAME + ".onAppStart: [" + appInstance.getContextStr() + "] bucket region doesn't match configured region. (b:c)[" + bucketRegion + ":" + regionName + "]", WMSLoggerIDs.CAT_application, WMSLoggerIDs.EVT_comment);
-			}
+//			AmazonS3 s3Client = null;
+//			try {
+//				AWSCredentials credentials = new DefaultAWSCredentialsProviderChain().getCredentials();
+//				s3Client = new AmazonS3Client(credentials);
+//			} catch (Exception e) {
+//				s3Client = new AmazonS3Client();
+//			}
+//
+//			Regions region = null;
+//			if (s3EndPointUrl != null && !s3EndPointUrl.isEmpty()) {
+//				s3Client.setEndpoint(s3EndPointUrl);
+//				s3Client.setS3ClientOptions(S3ClientOptions.builder().setPathStyleAccess(true).build());
+//			} else{
+//				try
+//				{
+//					region = Regions.fromName(regionName);
+//				}
+//				catch (IllegalArgumentException e)
+//				{
+//					if (useDefaultRegion)
+//					{
+//						region = Regions.getCurrentRegion() != null ? Regions.fromName(Regions.getCurrentRegion().getName()) : Regions.DEFAULT_REGION;
+//						// set the regionName to the default region. Used in the bucket check later.
+//						if (region != null)
+//							regionName = region.getName();
+//					}
+//				}
+//				finally
+//				{
+//					if (region != null)
+//					{
+//						s3Client.setRegion(Region.getRegion(region));
+//					}
+//				}
+//			}
+//
+//			logger.info(MODULE_NAME + ".onAppStart: [" + appInstance.getContextStr() + "] using default aws credentials provider chain", WMSLoggerIDs.CAT_application, WMSLoggerIDs.EVT_comment);
+//
+//			if (checkBucket)
+//			{
+//				// check that the bucket exists and the s3Client can access it.
+//				// fails with a 404 response if the bucket doesn't exist and a 403 response if the s3Client doesn't have permission to access it.
+//				// fails with a 301 response if the bucket is in a different region and allowBucketRegionOverride isn't set (otherwise log a warning).
+//				HeadBucketResult headBucketResult = s3Client.headBucket(new HeadBucketRequest(bucketName));
+//				String bucketRegion = headBucketResult.getBucketRegion();
+//				if (!bucketRegion.equalsIgnoreCase(regionName))
+//					logger.warn(MODULE_NAME + ".onAppStart: [" + appInstance.getContextStr() + "] bucket region doesn't match configured region. (b:c)[" + bucketRegion + ":" + regionName + "]", WMSLoggerIDs.CAT_application, WMSLoggerIDs.EVT_comment);
+//			}
 			transferManager = TransferManagerBuilder.standard().withS3Client(s3Client).build();
 			logger.info(MODULE_NAME + ".onAppStart [" + appInstance.getContextStr() + "] Local Storage Dir: " + storageDirStr + ", S3 Bucket Name: " + bucketName + ", File Prefix: " + filePrefix + ", Resume Uploads: " + resumeUploads + ", Delete Original Files: " + deleteOriginalFiles
 					+ ", Version Files: " + versionFile + ", Upload Delay: " + uploadDelay, WMSLoggerIDs.CAT_application, WMSLoggerIDs.EVT_comment);
